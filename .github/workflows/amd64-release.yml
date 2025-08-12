@@ -12,6 +12,24 @@ jobs:
   pull_and_package:
     runs-on: ubuntu-22.04
     steps:
+      - name: Maximize build space & set TMPDIR
+        run: |
+          echo "=== Before cleanup ==="
+          df -h
+          # 删除大文件和无用目录
+          docker rmi $(docker images -q) || true
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/share/boost \
+                      /opt/hostedtoolcache /usr/local/share/az* /usr/local/lib/node_modules || true
+          sudo apt-get purge -y azure-cli* docker* ghc* zulu* llvm* firefox google* dotnet* \
+                               powershell* openjdk* mysql* php* mongodb* snap*
+          sudo apt-get autoremove -y --purge
+          sudo apt-get clean
+          # 把 /tmp 挪到空间更大的工作目录
+          export TMPDIR="$GITHUB_WORKSPACE/tmp"
+          mkdir -p "$TMPDIR"
+          echo "TMPDIR=$TMPDIR" >> $GITHUB_ENV
+          echo "=== After cleanup ==="
+          df -h
       - name: Checkout repository
         uses: actions/checkout@v4
 
