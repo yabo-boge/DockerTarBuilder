@@ -6,7 +6,7 @@ on:
       docker_images:
         description: '请填写docker镜像名称,多个用英文逗号分开'
         required: true
-        default: 'alpine:latest,alpine/curl,busybox:stable-glibc'
+        default: 'ghcr.io/catthehacker/ubuntu:full-22.04'
 
 jobs:
   pull_and_package:
@@ -26,12 +26,15 @@ jobs:
             docker save "${image}" -o "${image_name}-amd64.tar"
             gzip -c "${image_name}-amd64.tar" > "${image_name}-amd64.tar.gz"
             rm "${image_name}-amd64.tar"
+            # 分割文件：每个分割块大小 1G，生成 image_name-amd64.tar.gz.partaa, partab ... 文件
+            split -b 1024m "${image_name}-amd64.tar.gz" "${image_name}-amd64.tar.gz.part"
+            rm "${image_name}-amd64.tar.gz"
           done
 
-      - name: List generated files (debug step)
+      - name: List generated split files (debug step)
         run: |
-          echo "Preparing docker images list (.tar.gz) files:"
-          find $GITHUB_WORKSPACE -name "*.tar.gz"
+          echo "Prepared docker images split parts:"
+          find $GITHUB_WORKSPACE -name "*.part*"
           release_name=$(TZ="Asia/Shanghai" date +'%Y-%m-%d %H:%M Build')
           echo "RELEASE_NAME=$release_name" >> $GITHUB_ENV
 
@@ -42,20 +45,24 @@ jobs:
           name: ${{ env.RELEASE_NAME }} for x86-64
           body: |
             [![Github](https://img.shields.io/badge/RELEASE:DockerTarBuilder-123456?logo=github&logoColor=fff&labelColor=green&style=for-the-badge)](https://www.bilibili.com/video/BV1EZ421M7mL) [![Github](https://img.shields.io/badge/国内加速站下载-FC7C0D?logo=github&logoColor=fff&labelColor=000&style=for-the-badge)](https://wkdaily.cpolar.top/archives/1)
-            ### How to use? For example
-            `docker load -i alpine_latest.tar.gz `
-            ### Video teaching
+            ### 使用说明：
+            分割文件下载后，执行：
+            ```
+            cat alpine_latest-amd64.tar.gz.part* > alpine_latest-amd64.tar.gz
+            docker load -i alpine_latest-amd64.tar.gz
+            ```
+            ### 视频教学
             [![Bilibili](https://img.shields.io/badge/Bilibili-123456?logo=bilibili&logoColor=fff&labelColor=fb7299)](https://www.bilibili.com/video/BV1yyq6YREdF)
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Docker images as release assets
+      - name: Upload Docker images split parts as release assets
         uses: softprops/action-gh-release@v2.1.0
         with:
           tag_name: DockerTarBuilder-AMD64
-          files: ${{ github.workspace }}/*.tar.gz
+          files: ${{ github.workspace }}/*.part*
           token: ${{ secrets.GITHUB_TOKEN }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
