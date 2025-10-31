@@ -3,10 +3,9 @@ on:
   workflow_dispatch:
     inputs:
       docker_images:
-        description: '请输入Docker镜像名称（多个用逗号分隔）'
+        description: '请填写docker镜像名称 多个用英文逗号分开'
         required: true
-        # ✅ 修改1：默认镜像改为PHG镜像
-        default: 'maizegenetics/phg:v2.0.1'
+        default: 'alpine:latest,busybox:stable-glibc'  # 设置默认的 Docker 镜像列表
 
 jobs:
   pull_and_package:
@@ -18,26 +17,23 @@ jobs:
 
     - name: Clean up Docker to free space
       run: |
-        docker system prune -af
-        docker volume prune -f
-        # ✅ 修改2：额外释放空间
-        rm -rf /usr/local/lib/android
-
+          docker system prune -a -f
+          docker volume prune -f
     - name: Pull Docker Images and Package
       run: |
         images="${{ github.event.inputs.docker_images }}"
-        IFS=',' read -r -a image_array <<< "$images"
-        for image in "${image_array[@]}"; do
-          docker pull "${image}" --platform linux/amd64
-          image_name="${image//\//_}"
-          image_name="${image_name//:/_}"
-          # ✅ 修改3：流式保存压缩，防止磁盘满
-          docker save "${image}" | gzip -1 > "${image_name}-amd64.tar.gz"
-        done
-
+          IFS=',' read -r -a image_array <<< "$images"
+          for image in "${image_array[@]}"; do
+            docker pull "${image}" --platform "linux/amd64"
+            image_name="${image//\//_}"
+            image_name="${image_name//:/_}"
+            docker save "${image}" -o "${image_name}-amd64.tar"
+            gzip -c "${image_name}-amd64.tar" > "${image_name}-amd64.tar.gz"
+            rm "${image_name}-amd64.tar"
+          done
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: docker-images
+        name: my-artifact
         path: ${{ github.workspace }}/*.tar.gz
-        retention-days: 1
+        retention-days: 1  # 将保留天数设置为 1 天 最多可设置90天
